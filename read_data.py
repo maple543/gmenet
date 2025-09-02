@@ -55,3 +55,51 @@ class ISICDataSet(Dataset):
     def get_labels(self):
 
         return one_hot(torch.tensor(self.labels, dtype=torch.long), 3).float()
+
+
+class ChestXrayDataSet(Dataset):
+    def __init__(self, data_dir, image_list_file, transform=None):
+
+        mapping = {
+            'normal': 0,
+            'pneumonia': 1,
+            'COVID-19': 2
+        }
+
+        image_names = []
+        labels = []
+
+        # 读取图像列表文件
+        with open(image_list_file, "r") as f:
+            for line in f:
+                items = line.split()
+                image_name = items[1]
+                label = mapping[items[2]]
+                image_name = os.path.join(data_dir, image_name)
+                image_names.append(image_name)
+                labels.append(label)
+
+        self.image_names = image_names
+        self.labels = labels
+        self.transform = transform
+
+    def __getitem__(self, index):
+        image = Image.open(self.image_paths[index]).convert('RGB')
+
+        # 应用图像变换
+        if self.transform is not None:
+            image = self.transform(image)
+
+        # 标签转为one-hot编码（与ISICDataSet保持一致）
+        label = self.labels[index]
+        one_hot_label = one_hot(torch.tensor(label, dtype=torch.long), 3)
+
+        return image, one_hot_label.float()
+
+    def __len__(self):
+        """返回样本数量"""
+        return len(self.image_paths)
+
+    def get_labels(self):
+        """返回所有标签的one-hot编码（与ISICDataSet保持一致）"""
+        return one_hot(torch.tensor(self.labels, dtype=torch.long), 3).float()
