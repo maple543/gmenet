@@ -57,8 +57,7 @@ class GmeQwen2VLWithHash(nn.Module):
             min_image_tokens: int = 256,
             max_image_tokens: int = 512,
             max_length: int = 768,
-            hash_dim: int = 64,
-            **kwargs,
+            hash_dim: int = 64, **kwargs,
     ) -> None:
         super().__init__()
         self.device = device
@@ -71,7 +70,8 @@ class GmeQwen2VLWithHash(nn.Module):
             model_name,
             torch_dtype=torch.float16,
             output_hidden_states=True,
-            return_dict=True, **kwargs
+            return_dict=True,
+            **kwargs
         )
 
         # 初始化图像处理器
@@ -80,8 +80,7 @@ class GmeQwen2VLWithHash(nn.Module):
         self.processor = AutoProcessor.from_pretrained(
             model_name,
             min_pixels=min_pixels,
-            max_pixels=max_pixels,
-            **kwargs
+            max_pixels=max_pixels, **kwargs
         )
         self.processor.tokenizer.padding_side = 'right'
         self.default_instruction = 'You are a helpful assistant.'
@@ -113,7 +112,7 @@ class GmeQwen2VLWithHash(nn.Module):
             for _ in input_images
         ]
 
-        # 预处理
+        # 预处理（获取grid_thw参数）
         inputs = self.processor(
             text=input_texts,
             images=input_images,
@@ -129,12 +128,18 @@ class GmeQwen2VLWithHash(nn.Module):
             input_ids = inputs['input_ids']
             attention_mask = inputs['attention_mask']
             pixel_values = inputs.get('pixel_values')
+            # 新增：获取grid_thw参数（视觉模型必需）
+            grid_thw = inputs.get('image_grid_thw', None)  # 从processor输出中获取
 
             # 生成输入嵌入（文本+图像）
             inputs_embeds = self.gme_base.model.get_input_embeddings()(input_ids)
             if pixel_values is not None:
                 pixel_values = pixel_values.type(self.gme_base.visual.get_dtype())
-                image_embeds = self.gme_base.visual(pixel_values).to(inputs_embeds.device)
+                # 修复：传入grid_thw参数
+                image_embeds = self.gme_base.visual(
+                    pixel_values,
+                    grid_thw=grid_thw  # 补充视觉模型必需的网格信息
+                ).to(inputs_embeds.device)
                 image_mask = input_ids == self.gme_base.config.image_token_id
                 inputs_embeds[image_mask] = image_embeds
 
