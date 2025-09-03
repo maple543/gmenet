@@ -1,60 +1,53 @@
+# encoding: utf-8
+
+"""
+Read images and corresponding labels.
+"""
+
 import os
 import csv
 import torch
-import random
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader, Subset
-from torch.nn.functional import one_hot
-
+from torch.utils.data import Dataset
+import json
 
 class ISICDataSet(Dataset):
-
     def __init__(self, data_dir, image_list_file, transform=None):
-        self.data_dir = data_dir
-        self.transform = transform
-        self.image_paths = []
-        self.labels = []
 
+        image_names = []
+        labels = []
+        mask_names = []
         with open(image_list_file, newline='') as f:
             reader = csv.reader(f)
-            next(reader)
+            next(reader, None)  # skip header
             for line in reader:
-                image_id = line[0]
-                melanoma_val = float(line[1])
-                seborrheic_val = float(line[2])
-
-                # 确定标签（0: 痣, 1: 脂溢性角化病, 2: 黑色素瘤）
-                if melanoma_val == 1.0:
-                    label = 2
-                elif seborrheic_val == 1.0:
-                    label = 1
+                image_name = line[0]+'.jpg'
+                if float(line[1]) == 1:
+                    label = 2  # melanoma
+                elif float(line[2]) == 1:
+                    label = 1  # seborrheic keratosis
                 else:
-                    label = 0
+                    label = 0  # nevia
+                image_name = os.path.join(data_dir, image_name)
+                image_names.append(image_name)
+                labels.append(label)
 
-                image_path = os.path.join(data_dir, f"{image_id}.jpg")
-                if os.path.exists(image_path):
-                    self.image_paths.append(image_path)
-                    self.labels.append(label)
-                else:
-                    print(f"不存在该图片:{image_path}")
+        self.image_names = image_names
+        self.labels = labels
+        self.mask_names = mask_names
+        self.transform = transform
 
     def __getitem__(self, index):
-        # 加载图像并应用变换
-        image = Image.open(self.image_paths[index]).convert('RGB')
+
+        image_name = self.image_names[index]
+        image = Image.open(image_name).convert('RGB')
+        label = self.labels[index]
         if self.transform is not None:
             image = self.transform(image)
-        # 标签转为one-hot编码
-        label = self.labels[index]
-        one_hot_label = one_hot(torch.tensor(label, dtype=torch.long), 3)
-
-        return image, one_hot_label.float()
+        return image, torch.tensor(label, dtype=torch.long)
 
     def __len__(self):
-        return len(self.image_paths)
-
-    def get_labels(self):
-
-        return one_hot(torch.tensor(self.labels, dtype=torch.long), 3).float()
+        return len(self.image_names)
 
 
 class ChestXrayDataSet(Dataset):
@@ -68,38 +61,30 @@ class ChestXrayDataSet(Dataset):
 
         image_names = []
         labels = []
-
-        # 读取图像列表文件
+        mask_names = []
         with open(image_list_file, "r") as f:
             for line in f:
                 items = line.split()
                 image_name = items[1]
                 label = mapping[items[2]]
                 image_name = os.path.join(data_dir, image_name)
-                image_names.append(image_name)
-                labels.append(label)
-
+                if os.path.exists(image_name):
+                    image_names.append(image_name)
+                    labels.append(label)
+                else:
+                    print(image_name)
+        print(len(image_names))
         self.image_names = image_names
         self.labels = labels
         self.transform = transform
 
     def __getitem__(self, index):
-        image = Image.open(self.image_paths[index]).convert('RGB')
-
-        # 应用图像变换
+        image_name = self.image_names[index]
+        image = Image.open(image_name).convert('RGB')
+        label = self.labels[index]
         if self.transform is not None:
             image = self.transform(image)
-
-        # 标签转为one-hot编码（与ISICDataSet保持一致）
-        label = self.labels[index]
-        one_hot_label = one_hot(torch.tensor(label, dtype=torch.long), 3)
-
-        return image, one_hot_label.float()
+        return image, torch.tensor(label, dtype=torch.long)
 
     def __len__(self):
-        """返回样本数量"""
-        return len(self.image_paths)
-
-    def get_labels(self):
-        """返回所有标签的one-hot编码（与ISICDataSet保持一致）"""
-        return one_hot(torch.tensor(self.labels, dtype=torch.long), 3).float()
+        return len(self.image_names)
