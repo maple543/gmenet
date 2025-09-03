@@ -36,11 +36,10 @@ def bihalfHash_layer(input: torch.Tensor) -> torch.Tensor:
 
 class Hashnet(nn.Module):
 
-    def __init__(self, hash_dim,gme_dim):
+    def __init__(self, hash_dim):
         super().__init__()
         self.hash_dim = hash_dim
-        self.gme_dim = gme_dim
-        self.fc_layer = nn.Linear(self.gme_dim, self.hash_dim)
+        self.fc_layer = nn.Linear(1536, self.hash_dim)
         self.fc_bn = nn.BatchNorm1d(self.hash_dim)
 
     def forward(self,x):
